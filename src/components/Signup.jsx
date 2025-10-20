@@ -1,5 +1,7 @@
 
 
+//Version5: Friends:
+
 // src/components/Signup.jsx
 import React, { useState } from "react";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
@@ -32,6 +34,13 @@ export default function Signup() {
         photoURL: "",
       };
       await setDoc(doc(db, "users", fbUser.uid), userDoc);
+
+      // create friendship doc for new user
+      await setDoc(doc(db, "friendships", fbUser.uid), {
+        friends: [],
+        pendingRequests: [],
+        sentRequests: [],
+      });
 
       // update redux
       dispatch(
@@ -76,7 +85,7 @@ export default function Signup() {
         />
         <button
           onClick={handleSignup}
-          className="w-full bg-green-600 text-white py-2 rounded"
+          className="w-full bg-green-600 text-white py-2 rounded hover:bg-green-700"
         >
           Signup
         </button>

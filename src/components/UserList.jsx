@@ -1,16 +1,22 @@
 
 
+//Version5: Friends:
+
 // src/components/UserList.jsx
 import React, { useEffect, useState } from "react";
-import { collection, onSnapshot, doc, getDoc, setDoc } from "firebase/firestore";
+import { collection, onSnapshot, doc, getDoc, setDoc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 import { db } from "../firebase/config";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
+import { addSentRequest, removeSentRequest, addFriend, removeFriend } from "../redux/friendshipSlice";
 
 export default function UserList() {
   const [users, setUsers] = useState([]);
   const me = useSelector((s) => s.user.user);
+  const friends = useSelector((s) => s.friendship.friends);
+  const sentRequests = useSelector((s) => s.friendship.sentRequests);
   const navigate = useNavigate();
+  const dispatch = useDispatch();
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "users"), (snap) => {
@@ -38,6 +44,106 @@ export default function UserList() {
       });
     }
     navigate(`/chat/${chatId}`);
+  };
+
+  // const sendFriendRequest = async (otherUid) => {
+  //   if (!me) return;
+  //   try {
+  //     // Update sender's sentRequests
+  //     const meFriendshipRef = doc(db, "friendships", me.uid);
+  //     await updateDoc(meFriendshipRef, {
+  //       sentRequests: arrayUnion(otherUid),
+  //     });
+
+  //     // Update receiver's pendingRequests
+  //     const otherFriendshipRef = doc(db, "friendships", otherUid);
+  //     await updateDoc(otherFriendshipRef, {
+  //       pendingRequests: arrayUnion(me.uid),
+  //     });
+
+  //     dispatch(addSentRequest(otherUid));
+  //   } catch (e) {
+  //     console.error("Error sending friend request:", e);
+  //     alert("Error sending friend request");
+  //   }
+  // };
+
+  const sendFriendRequest = async (otherUid) => {
+    if (!me) return;
+    try {
+      // Update sender's sentRequests
+      const meFriendshipRef = doc(db, "friendships", me.uid);
+      await setDoc(meFriendshipRef, {
+        sentRequests: arrayUnion(otherUid),
+      }, { merge: true });
+
+      // Update receiver's pendingRequests
+      const otherFriendshipRef = doc(db, "friendships", otherUid);
+      await setDoc(otherFriendshipRef, {
+        pendingRequests: arrayUnion(me.uid),
+      }, { merge: true });
+
+      dispatch(addSentRequest(otherUid));
+    } catch (e) {
+      console.error("Error sending friend request:", e);
+      alert("Error sending friend request");
+    }
+  };
+
+  // const removeFriendConnection = async (otherUid) => {
+  //   if (!me) return;
+  //   try {
+  //     // Remove from both users' friends lists
+  //     const meFriendshipRef = doc(db, "friendships", me.uid);
+  //     await updateDoc(meFriendshipRef, {
+  //       friends: arrayRemove(otherUid),
+  //     });
+
+  //     const otherFriendshipRef = doc(db, "friendships", otherUid);
+  //     await updateDoc(otherFriendshipRef, {
+  //       friends: arrayRemove(me.uid),
+  //     });
+
+  //     dispatch(removeFriend(otherUid));
+  //   } catch (e) {
+  //     console.error("Error removing friend:", e);
+  //     alert("Error removing friend");
+  //   }
+  // };
+
+  const removeFriendConnection = async (otherUid) => {
+    if (!me) return;
+    try {
+      // Remove from both users' friends lists
+      const meFriendshipRef = doc(db, "friendships", me.uid);
+      await setDoc(meFriendshipRef, {
+        friends: arrayRemove(otherUid),
+      }, { merge: true });
+
+      const otherFriendshipRef = doc(db, "friendships", otherUid);
+      await setDoc(otherFriendshipRef, {
+        friends: arrayRemove(me.uid),
+      }, { merge: true });
+
+      dispatch(removeFriend(otherUid));
+    } catch (e) {
+      console.error("Error removing friend:", e);
+      alert("Error removing friend");
+    }
+  };
+
+  const getFriendButtonText = (uid) => {
+    if (friends.includes(uid)) return "Remove Friend";
+    if (sentRequests.includes(uid)) return "Request Sent";
+    return "Add Friend";
+  };
+
+  const handleFriendButton = async (uid) => {
+    if (friends.includes(uid)) {
+      await removeFriendConnection(uid);
+    } else if (!sentRequests.includes(uid)) {
+      await sendFriendRequest(uid);
+    }
   };
 
   return (
@@ -73,6 +179,18 @@ export default function UserList() {
                 >
                   Chat
                 </button>
+                <button
+                  onClick={() => handleFriendButton(u.uid)}
+                  disabled={sentRequests.includes(u.uid) && !friends.includes(u.uid)}
+                  className={`px-3 py-1 rounded ${friends.includes(u.uid)
+                      ? "bg-red-600 text-white hover:bg-red-700"
+                      : sentRequests.includes(u.uid)
+                        ? "bg-gray-400 text-white cursor-not-allowed"
+                        : "bg-green-600 text-white hover:bg-green-700"
+                    }`}
+                >
+                  {getFriendButtonText(u.uid)}
+                </button>
               </div>
             </li>
           ))}
@@ -81,8 +199,6 @@ export default function UserList() {
     </div>
   );
 }
-
-//Friendlist:
 
 
 
