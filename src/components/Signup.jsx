@@ -32,6 +32,12 @@ export default function Signup() {
         email,
         status: "Hey there! I am using ChatApp.",
         photoURL: "",
+        bio: "",
+        privacy: {
+          wall: "friends",
+          chat: "anyone",
+          gallery: "friends",
+        },
       };
       await setDoc(doc(db, "users", fbUser.uid), userDoc);
 
@@ -50,6 +56,9 @@ export default function Signup() {
           email: fbUser.email,
           photoURL: "",
           status: userDoc.status,
+          bio: userDoc.bio,
+          privacy: userDoc.privacy,
+          emailVerified: fbUser.emailVerified,
         })
       );
 
@@ -97,5 +106,4 @@ export default function Signup() {
     </div>
   );
 }
-
 

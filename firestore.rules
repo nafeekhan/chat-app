@@ -1,0 +1,173 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function userDoc(uid) {
+      return get(/databases/$(database)/documents/users/$(uid));
+    }
+
+    function userExists(uid) {
+      return exists(/databases/$(database)/documents/users/$(uid));
+    }
+
+    function userPrivacy(uid) {
+      return userExists(uid)
+        ? userDoc(uid).data.privacy
+        : null;
+    }
+
+    function friendshipDoc(uid) {
+      return get(/databases/$(database)/documents/friendships/$(uid));
+    }
+
+    function isFriendOf(uid) {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/friendships/$(uid))
+        && friendshipDoc(uid).data.friends is list
+        && friendshipDoc(uid).data.friends.hasAny([request.auth.uid]);
+    }
+
+    function wallPolicy(uid) {
+      return userPrivacy(uid) != null && userPrivacy(uid).wall != null
+        ? userPrivacy(uid).wall
+        : "friends";
+    }
+
+    function galleryPolicy(uid) {
+      return userPrivacy(uid) != null && userPrivacy(uid).gallery != null
+        ? userPrivacy(uid).gallery
+        : "friends";
+    }
+
+    function chatPolicy(uid) {
+      return userPrivacy(uid) != null && userPrivacy(uid).chat != null
+        ? userPrivacy(uid).chat
+        : "anyone";
+    }
+
+    function canViewWall(uid) {
+      return isSignedIn() && (
+        isOwner(uid) ||
+        wallPolicy(uid) == "anyone" ||
+        (wallPolicy(uid) == "friends" && isFriendOf(uid))
+      );
+    }
+
+    function canPostOnWall(uid) {
+      return isSignedIn() && (
+        isOwner(uid) ||
+        wallPolicy(uid) == "anyone" ||
+        (wallPolicy(uid) == "friends" && isFriendOf(uid))
+      );
+    }
+
+    function canViewGallery(uid) {
+      return isSignedIn() && (
+        isOwner(uid) ||
+        galleryPolicy(uid) == "anyone" ||
+        (galleryPolicy(uid) == "friends" && isFriendOf(uid))
+      );
+    }
+
+    function canReceiveChat(uid) {
+      return isSignedIn() && (
+        isOwner(uid) ||
+        chatPolicy(uid) == "anyone" ||
+        (chatPolicy(uid) == "friends" && isFriendOf(uid))
+      );
+    }
+
+    match /users/{uid} {
+      allow read: if true;
+      allow create: if isOwner(uid);
+      allow update: if isOwner(uid);
+      allow delete: if false;
+    }
+
+    match /friendships/{uid} {
+      allow read: if isOwner(uid);
+      allow write: if isSignedIn()
+        && request.resource.data.keys().hasOnly(['friends', 'pendingRequests', 'sentRequests']);
+    }
+
+    match /chats/{chatId} {
+      function chatParticipants() {
+        return exists(/databases/$(database)/documents/chats/$(chatId))
+          ? get(/databases/$(database)/documents/chats/$(chatId)).data.participants
+          : [];
+      }
+
+      function isParticipant() {
+        return isSignedIn()
+          && chatParticipants().hasAny([request.auth.uid]);
+      }
+
+      allow create: if isSignedIn()
+        && request.resource.data.participants is list
+        && request.resource.data.participants.size() == 2
+        && request.resource.data.participants.hasAll([request.auth.uid])
+        && canReceiveChat(
+          request.resource.data.participants[0] == request.auth.uid
+            ? request.resource.data.participants[1]
+            : request.resource.data.participants[0]
+        );
+
+      allow read: if isParticipant();
+
+      allow update: if isParticipant()
+        && request.resource.data.participants == resource.data.participants;
+
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        allow read: if isParticipant();
+
+        allow create: if isParticipant()
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.text is string
+          && request.resource.data.text.size() > 0;
+
+        allow update: if false;
+        allow delete: if request.auth.uid == resource.data.senderId;
+      }
+    }
+
+    match /wallPosts/{postId} {
+      allow read: if isSignedIn() && canViewWall(resource.data.ownerId);
+
+      allow create: if isSignedIn()
+        && request.resource.data.authorId == request.auth.uid
+        && request.resource.data.ownerId is string
+        && request.resource.data.content is string
+        && request.resource.data.content.size() > 0
+        && canPostOnWall(request.resource.data.ownerId);
+
+      allow update: if isSignedIn()
+        && request.auth.uid == resource.data.authorId
+        && request.resource.data.authorId == resource.data.authorId
+        && request.resource.data.ownerId == resource.data.ownerId;
+
+      allow delete: if isSignedIn()
+        && (request.auth.uid == resource.data.authorId
+          || request.auth.uid == resource.data.ownerId);
+    }
+
+    match /galleryItems/{itemId} {
+      allow read: if isSignedIn() && canViewGallery(resource.data.ownerId);
+
+      allow create: if isSignedIn()
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.url is string;
+
+      allow update, delete: if isSignedIn()
+        && request.auth.uid == resource.data.ownerId;
+    }
+  }
+}

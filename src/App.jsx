@@ -12,6 +12,8 @@ import Home from "./components/Home";
 import UserList from "./components/UserList";
 import Profile from "./components/Profile";
 import ChatWindow from "./components/ChatWindow";
+import Settings from "./components/Settings";
+import Gallery from "./components/Gallery";
 
 export default function App() {
   const user = useSelector((s) => s.user.user);
@@ -26,6 +28,9 @@ export default function App() {
         <Route path="/users" element={user ? <UserList /> : <Navigate to="/" />} />
         <Route path="/profile" element={user ? <Profile /> : <Navigate to="/" />} />
         <Route path="/profile/:uid" element={user ? <Profile /> : <Navigate to="/" />} />
+        <Route path="/settings" element={user ? <Settings /> : <Navigate to="/" />} />
+        <Route path="/gallery" element={user ? <Gallery /> : <Navigate to="/" />} />
+        <Route path="/gallery/:uid" element={user ? <Gallery /> : <Navigate to="/" />} />
         <Route path="/chat/:chatId" element={user ? <ChatWindow /> : <Navigate to="/" />} />
         {/* fallback */}
         <Route path="*" element={<Navigate to={user ? "/home" : "/"} />} />
@@ -33,6 +38,4 @@ export default function App() {
     </Router>
   );
 }
-
-
 

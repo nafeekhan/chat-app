@@ -34,6 +34,16 @@ export default function Navbar() {
             <Link to="/home" className="hover:underline">Home</Link>
             <Link to="/users" className="hover:underline">Users</Link>
             <Link to="/profile" className="hover:underline">Profile</Link>
+            <Link
+              to="/settings"
+              className="hover:underline flex items-center gap-1"
+              title="Settings"
+            >
+              <span role="img" aria-label="settings">
+                ⚙️
+              </span>
+              <span className="hidden sm:inline">Settings</span>
+            </Link>
             <button
               onClick={handleLogout}
               className="bg-red-500 hover:bg-red-600 px-3 py-1 rounded"
@@ -51,5 +61,4 @@ export default function Navbar() {
     </nav>
   );
 }
-
 

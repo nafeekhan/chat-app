@@ -4,11 +4,11 @@
 
 // src/components/UserList.jsx
 import React, { useEffect, useState } from "react";
-import { collection, onSnapshot, doc, getDoc, setDoc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
+import { collection, onSnapshot, doc, getDoc, setDoc, arrayUnion, arrayRemove, serverTimestamp } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { useSelector, useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import { addSentRequest, removeSentRequest, addFriend, removeFriend } from "../redux/friendshipSlice";
+import { addSentRequest, removeFriend } from "../redux/friendshipSlice";
 
 export default function UserList() {
   const [users, setUsers] = useState([]);
@@ -30,20 +30,56 @@ export default function UserList() {
     return () => unsub();
   }, [me]);
 
+  const canChatWithUser = (other) => {
+    const policy = other.privacy?.chat || "anyone";
+    if (policy === "anyone") return true;
+    if (policy === "friends") return friends.includes(other.uid);
+    if (policy === "only me") return false;
+    return true;
+  };
+
   const startOrOpenChat = async (other) => {
     if (!me) return;
-    // canonical chatId using lexicographic order
-    const chatId = me.uid > other.uid ? `${me.uid}_${other.uid}` : `${other.uid}_${me.uid}`;
+    const chatId =
+      me.uid > other.uid ? `${me.uid}_${other.uid}` : `${other.uid}_${me.uid}`;
     const chatDocRef = doc(db, "chats", chatId);
-    const chatSnap = await getDoc(chatDocRef);
-    if (!chatSnap.exists()) {
-      // create chat doc
-      await setDoc(chatDocRef, {
-        participants: [me.uid, other.uid],
-        createdAt: new Date(),
-      });
+
+    let chatExists = false;
+    try {
+      const chatSnap = await getDoc(chatDocRef);
+      chatExists = chatSnap.exists();
+    } catch (err) {
+      if (err.code === "permission-denied") {
+        chatExists = false;
+      } else {
+        console.error("Error checking chat existence:", err);
+        alert("Unable to start chat right now. Please try again.");
+        return;
+      }
     }
-    navigate(`/chat/${chatId}`);
+
+    try {
+      if (!chatExists) {
+        if (!canChatWithUser(other)) {
+          alert("This user only allows chats from permitted users.");
+          return;
+        }
+        await setDoc(
+          chatDocRef,
+          {
+            participants: [me.uid, other.uid],
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          },
+          { merge: false }
+        );
+      }
+
+      navigate(`/chat/${chatId}`);
+    } catch (err) {
+      console.error("Error starting chat:", err);
+      alert("Unable to start chat right now. Please try again.");
+    }
   };
 
   // const sendFriendRequest = async (otherUid) => {
@@ -175,7 +211,17 @@ export default function UserList() {
                 </button>
                 <button
                   onClick={() => startOrOpenChat(u)}
-                  className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+                  disabled={!canChatWithUser(u)}
+                  title={
+                    canChatWithUser(u)
+                      ? "Start chat"
+                      : "You do not have permission to message this user."
+                  }
+                  className={`px-3 py-1 rounded ${
+                    canChatWithUser(u)
+                      ? "bg-blue-600 text-white hover:bg-blue-700"
+                      : "bg-gray-400 text-white cursor-not-allowed"
+                  }`}
                 >
                   Chat
                 </button>
@@ -199,7 +245,3 @@ export default function UserList() {
     </div>
   );
 }
-
-
-
-

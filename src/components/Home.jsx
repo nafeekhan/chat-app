@@ -4,11 +4,12 @@
 
 // src/components/Home.jsx
 import React, { useEffect, useState } from "react";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 //import { collection, query, where, onSnapshot, doc, getDoc, updateDoc, arrayAccept, arrayRemove } from "firebase/firestore";
 import { collection, query, where, onSnapshot, doc, getDoc, setDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { Link, useNavigate } from "react-router-dom";
+import { addFriend, removePendingRequest } from "../redux/friendshipSlice";
 
 export default function Home() {
   const user = useSelector((s) => s.user.user);
@@ -17,6 +18,7 @@ export default function Home() {
   const [chats, setChats] = useState([]);
   const [friendData, setFriendData] = useState([]);
   const navigate = useNavigate();
+  const dispatch = useDispatch();
 
   useEffect(() => {
     if (!user) return;
@@ -158,7 +160,18 @@ export default function Home() {
             <h3 className="text-lg font-semibold mb-3">Friend Requests</h3>
             <ul className="space-y-2">
               {pendingRequests.map((requesterUid) => (
-                <PendingRequestItem key={requesterUid} requesterUid={requesterUid} currentUserId={user.uid} />
+                <PendingRequestItem
+                  key={requesterUid}
+                  requesterUid={requesterUid}
+                  currentUserId={user.uid}
+                  onAccepted={() => {
+                    dispatch(addFriend(requesterUid));
+                    dispatch(removePendingRequest(requesterUid));
+                  }}
+                  onRejected={() => {
+                    dispatch(removePendingRequest(requesterUid));
+                  }}
+                />
               ))}
             </ul>
           </div>
@@ -168,7 +181,7 @@ export default function Home() {
   );
 }
 
-function PendingRequestItem({ requesterUid, currentUserId }) {
+function PendingRequestItem({ requesterUid, currentUserId, onAccepted, onRejected }) {
   const [requester, setRequester] = useState(null);
 
   useEffect(() => {
@@ -214,6 +227,9 @@ function PendingRequestItem({ requesterUid, currentUserId }) {
         friends: arrayUnion(currentUserId),
         sentRequests: arrayRemove(currentUserId),
       }, { merge: true });
+      if (typeof onAccepted === "function") {
+        onAccepted();
+      }
     } catch (e) {
       console.error("Error accepting request:", e);
       alert("Error accepting request");
@@ -244,6 +260,9 @@ function PendingRequestItem({ requesterUid, currentUserId }) {
       await setDoc(doc(db, "friendships", requesterUid), {
         sentRequests: arrayRemove(currentUserId),
       }, { merge: true });
+      if (typeof onRejected === "function") {
+        onRejected();
+      }
     } catch (e) {
       console.error("Error rejecting request:", e);
       alert("Error rejecting request");
@@ -282,7 +301,5 @@ function PendingRequestItem({ requesterUid, currentUserId }) {
     </li>
   );
 }
-
-
 
 

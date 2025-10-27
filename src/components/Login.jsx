@@ -32,6 +32,13 @@ export default function Login() {
           email: fbUser.email,
           photoURL: userData.photoURL || fbUser.photoURL || "",
           status: userData.status || "",
+          bio: userData.bio || "",
+          privacy: {
+            wall: userData.privacy?.wall || "friends",
+            chat: userData.privacy?.chat || "anyone",
+            gallery: userData.privacy?.gallery || "friends",
+          },
+          emailVerified: fbUser.emailVerified,
         })
       );
 
@@ -73,5 +80,4 @@ export default function Login() {
     </div>
   );
 }
-
 
